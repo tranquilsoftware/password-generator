@@ -238,9 +238,16 @@ interface SecretPanelProps {
   strength: number;
   strengthLabel: string;
   onRegenerate: () => void;
+  mode: GenerationMode;
 }
 
-const SecretPanel: React.FC<SecretPanelProps> = ({ secret, strength, strengthLabel, onRegenerate }) => {
+const SecretPanel: React.FC<SecretPanelProps> = ({
+  secret,
+  strength,
+  strengthLabel,
+  onRegenerate,
+  mode 
+}) => {
   const [revealed, setRevealed] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -282,14 +289,16 @@ const SecretPanel: React.FC<SecretPanelProps> = ({ secret, strength, strengthLab
             >
               {copied ? <Check className="w-5 h-5 text-white" /> : <Copy className="w-5 h-5 text-white" />}
             </button>
-            <button
-              onClick={onRegenerate}
-              className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
-              aria-label="Generate new password"
-              title="Generate new password"
-            >
-              <RotateCw className="w-5 h-5 text-slate-300" />
-            </button>
+            {mode !== 'deterministic' && (
+              <button
+                onClick={onRegenerate}
+                className="p-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition"
+                aria-label="Generate new password"
+                title="Generate new password"
+              >
+                <RotateCw className="w-5 h-5 text-slate-300" />
+              </button>
+            )}
           </div>
         </div>
         <div className="space-y-2">
@@ -517,7 +526,8 @@ const StrengthGuide: React.FC = () => {
                 Understand how password characteristics affect security and estimated time to crack.
             </p>
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-                <table className="w-full">
+                <div className="overflow-x-auto">
+                    <table className="w-full min-w-[600px]">
                     <thead className="bg-slate-800">
                         <tr>
                             <th className="text-left text-slate-300 px-6 py-4">Type</th>
@@ -546,7 +556,8 @@ const StrengthGuide: React.FC = () => {
                             </tr>
                         ))}
                     </tbody>
-                </table>
+                    </table>
+                </div>
                 {/* Rest of the component remains the same */}
                 <div className="p-4 bg-slate-800/50 text-slate-400 text-xs border-t border-slate-800">
                     * Estimated time to crack using modern hardware. Actual time may vary based on hashing algorithm and computing power.
@@ -661,6 +672,7 @@ export default function App() {
             strength={result.strength}
             strengthLabel={result.strengthLabel}
             onRegenerate={generateSecret}
+            mode={mode}
           />
         )}
 
