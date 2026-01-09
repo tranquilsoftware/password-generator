@@ -2,6 +2,8 @@
 
 A modern, secure web application for generating cryptographically strong passwords with both **random** and **deterministic** generation modes.
 
+[Use for Free Here](https://tranquilsoftware.github.io/password-generator/)
+
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-18+-61dafb.svg)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5+-3178c6.svg)
