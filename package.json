@@ -9,6 +9,7 @@
     "deploy": "gh-pages -d dist",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "node src/generator.test.ts",
     "preview": "vite preview",
     "build:css": "tailwindcss -i ./src/index.css -o ./dist/output.css --watch"
   },

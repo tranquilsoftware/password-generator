@@ -1,161 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Badge } from './components/ui/Badge';
-import { Copy, Eye, EyeOff, Download, Check, Lock, Shield, RotateCw, Key, Clock, ShieldCheck } from 'lucide-react';
+import { Copy, Eye, EyeOff, Download, Check, Shield, RotateCw, Key, Clock, ShieldCheck } from 'lucide-react';
 import ServiceCardContainer from './components/ui/CardContainer';
 import { PASSWORD_STRENGTH_DATA } from './components/utils/tableUtil';
+import {
+  type GeneratorOptions,
+  type SecretResult,
+  DEFAULT_GENERATOR_OPTIONS,
+  DEFAULT_SECRET_RESULT,
+} from './constants';
+import { generateDeterministicSecret, generateRandomSecret } from './generator';
 
 // ===== TYPES =====
-interface GeneratorOptions {
-  length: number;
-  uppercase: boolean;
-  lowercase: boolean;
-  numbers: boolean;
-  symbols: boolean;
-  allowAmbiguous: boolean;
-}
-
-interface SecretResult {
-  secret: string;
-  strength: number;
-  strengthLabel: string;
-}
+// GeneratorOptions, SecretResult + their defaults live in ./constants (SSOT)
 
 type GenerationMode = 'random' | 'deterministic';
 const COLOR_SCHEME = 'cyan';
-
-// ===== CRYPTO UTILITIES =====
-class DeterministicGenerator {
-  private static ITERATIONS = 10000;
-
-  static async generate(
-    masterInput: string,
-    salt: string,
-    options: GeneratorOptions
-  ): Promise<string> {
-    const canonical = JSON.stringify({
-      seed: masterInput,
-      salt: salt,
-      length: options.length,
-      sets: {
-        U: options.uppercase,
-        L: options.lowercase,
-        N: options.numbers,
-        S: options.symbols,
-        A: options.allowAmbiguous
-      },
-      iterations: this.ITERATIONS
-    });
-
-    const encoder = new TextEncoder();
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode('jwt-secret-generator-v1'),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign']
-    );
-
-    const signature = await crypto.subtle.sign(
-      'HMAC',
-      key,
-      encoder.encode(canonical)
-    );
-
-    return this.expandToSecret(new Uint8Array(signature), options);
-  }
-
-  private static expandToSecret(bytes: Uint8Array, options: GeneratorOptions): string {
-    const alphabet = this.buildAlphabet(options);
-    if (alphabet.length === 0) return '';
-
-    let result = '';
-    let byteIndex = 0;
-
-    while (result.length < options.length) {
-      if (byteIndex >= bytes.length) {
-        const newBytes = new Uint8Array(bytes.length);
-        for (let i = 0; i < bytes.length; i++) {
-          newBytes[i] = (bytes[i] + result.length) % 256;
-        }
-        bytes = newBytes;
-        byteIndex = 0;
-      }
-
-      const char = alphabet[bytes[byteIndex] % alphabet.length];
-      result += char;
-      byteIndex++;
-    }
-
-    return result;
-  }
-
-  private static buildAlphabet(options: GeneratorOptions): string {
-    let alphabet = '';
-    const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-    const upperAmbig = 'IO';
-    const lower = 'abcdefghjkmnpqrstuvwxyz';
-    const lowerAmbig = 'ilo';
-    const nums = '23456789';
-    const numsAmbig = '01';
-    const syms = '!@#$%^&*-_=+';
-
-    if (options.uppercase) {
-      alphabet += options.allowAmbiguous ? upper + upperAmbig : upper;
-    }
-    if (options.lowercase) {
-      alphabet += options.allowAmbiguous ? lower + lowerAmbig : lower;
-    }
-    if (options.numbers) {
-      alphabet += options.allowAmbiguous ? nums + numsAmbig : nums;
-    }
-    if (options.symbols) {
-      alphabet += syms;
-    }
-
-    return alphabet;
-  }
-}
-
-function generateRandomSecret(options: GeneratorOptions): string {
-  const alphabet = buildAlphabet(options);
-  if (alphabet.length === 0) return '';
-
-  const array = new Uint8Array(options.length);
-  crypto.getRandomValues(array);
-
-  let result = '';
-  for (let i = 0; i < options.length; i++) {
-    result += alphabet[array[i] % alphabet.length];
-  }
-
-  return result;
-}
-
-function buildAlphabet(options: GeneratorOptions): string {
-  let alphabet = '';
-  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  const upperAmbig = 'IO';
-  const lower = 'abcdefghjkmnpqrstuvwxyz';
-  const lowerAmbig = 'ilo';
-  const nums = '23456789';
-  const numsAmbig = '01';
-  const syms = '!@#$%^&*-_=+';
-
-  if (options.uppercase) {
-    alphabet += options.allowAmbiguous ? upper + upperAmbig : upper;
-  }
-  if (options.lowercase) {
-    alphabet += options.allowAmbiguous ? lower + lowerAmbig : lower;
-  }
-  if (options.numbers) {
-    alphabet += options.allowAmbiguous ? nums + numsAmbig : nums;
-  }
-  if (options.symbols) {
-    alphabet += syms;
-  }
-
-  return alphabet;
-}
 
 function calculateStrength(secret: string, options: GeneratorOptions): SecretResult {
   let score = 0;
@@ -412,6 +272,7 @@ const DeterministicInputs: React.FC<DeterministicInputsProps> = ({
         <label className="block text-slate-300 text-sm mb-2">Master Input / Seed</label>
         <input
           type="text"
+          autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false}
           value={masterInput}
           onChange={(e) => onMasterChange(e.target.value)}
           placeholder="Enter master passphrase..."
@@ -422,6 +283,7 @@ const DeterministicInputs: React.FC<DeterministicInputsProps> = ({
         <label className="block text-slate-300 text-sm mb-2">Custom Salt</label>
         <input
           type="text"
+          autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false}
           value={salt}
           onChange={(e) => onSaltChange(e.target.value)}
           placeholder="Enter custom salt..."
@@ -474,11 +336,6 @@ const SecurityBestPractices: React.FC = () => {
       title: 'Strong Passwords', 
       description: 'Use at least 12 characters with a mix of uppercase, lowercase, numbers, and symbols.',
       icon: <Key className="w-6 h-6" />,
-    },
-    { 
-      title: 'Password Storage', 
-      description: 'Store passwords securely using environment variables, never hardcode in source.',
-      icon: <Lock className="w-6 h-6" />,
     },
     { 
       title: 'Regular Rotation', 
@@ -599,37 +456,20 @@ const Footer: React.FC = () => (
 // ===== MAIN APP =====
 export default function App() {
   const [mode, setMode] = useState<GenerationMode>('random');
-  const [options, setOptions] = useState<GeneratorOptions>({
-    length: 64,
-    uppercase: true,
-    lowercase: true,
-    numbers: true,
-    symbols: true,
-    allowAmbiguous: false
-  });
+  const [options, setOptions] = useState<GeneratorOptions>(DEFAULT_GENERATOR_OPTIONS);
   const [masterInput, setMasterInput] = useState('');
   const [salt, setSalt] = useState('');
-  const [result, setResult] = useState<SecretResult>({
-    secret: '',
-    strength: 0,
-    strengthLabel: 'Weak'
-  });
+  const [result, setResult] = useState<SecretResult>(DEFAULT_SECRET_RESULT);
+  const latestRun = useRef(0);
 
   const generateSecret = useCallback(async () => {
-    let secret: string;
+    const run = ++latestRun.current;
+    const secret = mode === 'deterministic'
+      ? await generateDeterministicSecret(masterInput, salt, options)
+      : generateRandomSecret(options);
 
-    if (mode === 'deterministic') {
-      if (!masterInput || !salt) {
-        secret = '';
-      } else {
-        secret = await DeterministicGenerator.generate(masterInput, salt, options);
-      }
-    } else {
-      secret = generateRandomSecret(options);
-    }
-
-    const newResult = calculateStrength(secret, options);
-    setResult(newResult);
+    // WebCrypto calls can resolve out of order; only the newest input may win.
+    if (run === latestRun.current) setResult(calculateStrength(secret, options));
   }, [mode, options, masterInput, salt]);
 
   useEffect(() => {
@@ -640,15 +480,11 @@ export default function App() {
     const secrets: string[] = [];
     
     for (let i = 0; i < count; i++) {
-      let secret: string;
-      if (mode === 'deterministic') {
-        const indexedSalt = `${salt}-${i}`;
-        secret = await DeterministicGenerator.generate(masterInput, indexedSalt, options);
-      } else {
-        secret = generateRandomSecret(options);
-      }
-      secrets.push(secret);
+      secrets.push(mode === 'deterministic'
+        ? await generateDeterministicSecret(masterInput, salt, options, i)
+        : generateRandomSecret(options));
     }
+    if (!secrets[0]) return;
 
     const csv = secrets.join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
