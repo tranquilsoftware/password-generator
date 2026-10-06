@@ -449,6 +449,7 @@ const Footer: React.FC = () => (
         </a>
         . All rights reserved.
       </p>
+      <p className="text-slate-500 text-xs mt-1">Password Generator v1.1</p>
     </div>
   </footer>
 );
